@@ -1,0 +1,6 @@
+USERNAME_TAKEN = "username already taken"
+USER_NOT_FOUND = "user not found"
+USER_SUCCESSFULLY_DELETED = "user successfully deleted"
+INCORRECT_LOGIN_INPUT = "incorrect login or password"
+INACTIVE_USER = "inactive user"
+ROLE_EXISTS = "role already exists"
