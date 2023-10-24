@@ -51,3 +51,13 @@ class TokenData(RWSchema):
 class Token(RWSchema):
     access_token: str
     token_type: str
+
+
+class ChangePasswordIn(RWSchema):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
+class ChangePasswordOut(RWSchema):
+    token: Token

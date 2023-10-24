@@ -10,7 +10,8 @@ from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_TOKEN_PREFIX
 from app.db.domain.users import UserInDB, User, Role
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 
-from app.schemas.users import UserResponse, UserList, UserInCreate, UserUpdate, UserInLogin, UserOutLogin, Token
+from app.schemas.users import UserResponse, UserList, UserInCreate, UserUpdate, UserInLogin, UserOutLogin, Token, \
+    ChangePasswordOut, ChangePasswordIn
 from app.services.security import oauth2_scheme
 from app.services.users import UsersService, get_current_user, get_current_active_user
 from app.utils import constants as const
@@ -43,6 +44,7 @@ async def login(
 
 @router.post(
     "/token",
+    deprecated=True,
     response_model=Token
 )
 async def login_for_access_token(
@@ -84,3 +86,15 @@ async def create_role(
 ):
     result = user_service.create_role(user_id, role)
     return result
+
+
+@router.put(
+    "/role/change_password",
+    response_model=ChangePasswordOut,
+)
+async def change_password(
+        password: Annotated[ChangePasswordIn, Body(...)],
+        user_service: UsersService = Depends(get_service(UsersService)),
+        current_user: User = Depends(get_current_active_user)
+):
+    return user_service.change_password(current_user.id, password)

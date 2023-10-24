@@ -6,11 +6,11 @@ from jose import jwt, JWTError
 from starlette import status
 
 from app.api.dependencies.db import get_service
-from app.core.config import SECRET_KEY, ALGORITHM
+from app.core.config import SECRET_KEY, ALGORITHM, JWT_TOKEN_PREFIX
 from sqlalchemy.orm import Session
 from app.db.domain.users import UserInDB, Role
 from app.db.models.users import User, UserRole
-from app.schemas.users import UserInCreate, UserUpdate, TokenData
+from app.schemas.users import UserInCreate, UserUpdate, TokenData, ChangePasswordIn, ChangePasswordOut, Token
 from app.services import security
 from app.services.base import BaseService
 from app.services.security import get_password_hash, oauth2_scheme
@@ -97,12 +97,16 @@ class UsersService(BaseService):
         role_exists = self.db.query(UserRole).filter(UserRole.user_id == user_id).first()
         return role_exists
 
-    def create_role(self, user_id, role: Role):
-        db_user = self.get_user_by_id(user_id=user_id)
+    def get_user_or_raise_error(self, db_user):
         if not db_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=const.USER_NOT_FOUND
             )
+        return db_user
+
+    def create_role(self, user_id, role: Role):
+        db_user = self.get_user_by_id(user_id=user_id)
+        self.get_user_or_raise_error(db_user)
         if self.check_role(user_id=user_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=const.ROLE_EXISTS
@@ -112,6 +116,40 @@ class UsersService(BaseService):
         self.db.commit()
         self.db.refresh(db_role)
         return db_role
+
+    def change_password(self, user_id: int, password: ChangePasswordIn):
+        db_user = self.get_user_by_id(user_id=user_id)
+        self.get_user_or_raise_error(db_user)
+        if password.new_password != password.confirm_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=const.PASSWORD_NOT_MATCH
+            )
+
+        if not self.check_password(db_user, password.current_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=const.INCORRECT_PASSWORD
+            )
+        db_user.password = get_password_hash(password.new_password)
+        self.db.commit()
+        self.db.refresh(db_user)
+
+        # return self.create_access_token(db_user)
+        return ChangePasswordOut(
+            token=Token(
+                access_token=self.create_access_token(db_user),
+                token_type=JWT_TOKEN_PREFIX
+            )
+        )
+
+    def check_user_attrs(self, user_id, **kwargs):
+        user = self.get_user_by_id(user_id=user_id)
+        self.get_user_or_raise_error(user)
+        for key, value in kwargs.items():
+            if getattr(user, key) != value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=const.USER_INFORMATION_DOES_NOT_MATCH
+                )
+        return user
 
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],
